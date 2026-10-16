@@ -1,0 +1,81 @@
+# Builds an installable Android APK on every push to main and publishes it as the
+# "latest" GitHub release, so you can download it straight onto your phone.
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      FOODLOG_VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx expo lint
+      - run: npx expo prebuild --platform android --no-install
+
+      - name: Set up signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.FOODLOG_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/foodlog.p12"
+            echo "FOODLOG_KEYSTORE_PATH=$RUNNER_TEMP/foodlog.p12" >> "$GITHUB_ENV"
+          else
+            echo "::warning::No signing key secret set. This APK uses a throwaway debug key and can't be installed over an earlier build without uninstalling first (which deletes your data). See README > Build the APK."
+          fi
+
+      - name: Build release APK
+        working-directory: android
+        env:
+          FOODLOG_KEYSTORE_PASSWORD: ${{ secrets.FOODLOG_KEYSTORE_PASSWORD }}
+          FOODLOG_KEY_ALIAS: ${{ secrets.FOODLOG_KEY_ALIAS }}
+          FOODLOG_KEY_PASSWORD: ${{ secrets.FOODLOG_KEY_PASSWORD }}
+        # arm64 covers practically every Android phone from the last several years, and builds much faster.
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a
+
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk "food-log-${{ github.run_number }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: food-log-apk
+          path: food-log-*.apk
+
+      # Only signed builds are published, so the release always updates cleanly over the last install.
+      - name: Publish "latest" release
+        if: env.FOODLOG_KEYSTORE_PATH != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest food-log-*.apk \
+            --title "Food Log (build ${{ github.run_number }})" \
+            --notes "Built from ${{ github.sha }}. Download the .apk on your Android phone and open it to install or update." \
+            --target "${{ github.sha }}"
