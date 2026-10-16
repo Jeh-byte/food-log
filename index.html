@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Food Log</title>
+  <meta name="description" content="Log meals by photo, voice, text or barcode. Private: data stays on your phone.">
+  <meta name="theme-color" content="#2a78d6">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 id="screen-title">Today</h1>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <main>
+    <!-- TODAY -->
+    <section id="view-today" class="view">
+      <div class="date-nav">
+        <button class="icon-btn" data-day-step="-1" aria-label="Previous day">‹</button>
+        <span id="today-date"></span>
+        <button class="icon-btn" data-day-step="1" aria-label="Next day">›</button>
+      </div>
+      <div class="card progress-card">
+        <div id="ring"></div>
+        <div id="macros" class="macros"></div>
+      </div>
+      <div id="meals"></div>
+    </section>
+
+    <!-- LOG -->
+    <section id="view-log" class="view" hidden>
+      <div class="modes" role="tablist">
+        <button class="mode" data-mode="photo">📷<span>Photo</span></button>
+        <button class="mode" data-mode="voice">🎙️<span>Say it</span></button>
+        <button class="mode" data-mode="text">⌨️<span>Type</span></button>
+        <button class="mode" data-mode="barcode">▥<span>Barcode</span></button>
+      </div>
+      <input id="photo-input" type="file" accept="image/*" capture="environment" hidden>
+
+      <div class="card">
+        <img id="photo-preview" class="photo-preview" alt="Meal photo" hidden>
+        <label for="food-text" class="label">What did you eat?</label>
+        <textarea id="food-text" rows="3" placeholder="e.g. two eggs and toast with butter"></textarea>
+        <p id="voice-status" class="hint" hidden></p>
+        <div class="row">
+          <button id="clear-input" class="btn ghost">Clear</button>
+          <button id="estimate-btn" class="btn primary">Estimate</button>
+        </div>
+      </div>
+
+      <h2 class="section-title">Favorites</h2>
+      <div id="favorites" class="chips"></div>
+      <h2 class="section-title">Recent</h2>
+      <div id="recent" class="list"></div>
+    </section>
+
+    <!-- HISTORY -->
+    <section id="view-history" class="view" hidden>
+      <div class="card">
+        <div class="date-nav">
+          <button class="icon-btn" id="week-prev" aria-label="Previous week">‹</button>
+          <span id="week-label"></span>
+          <button class="icon-btn" id="week-next" aria-label="Next week">›</button>
+        </div>
+        <div id="week-chart" class="chart-wrap"></div>
+        <div id="week-tip" class="chart-tip" aria-live="polite"></div>
+        <div id="week-avg" class="avg-grid"></div>
+      </div>
+      <div class="card">
+        <div class="date-nav">
+          <button class="icon-btn" id="month-prev" aria-label="Previous month">‹</button>
+          <span id="month-label"></span>
+          <button class="icon-btn" id="month-next" aria-label="Next month">›</button>
+        </div>
+        <div id="calendar" class="calendar"></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="view-settings" class="view" hidden>
+      <div class="card">
+        <h2 class="card-title">Claude API key</h2>
+        <p class="hint">Used only to send your photo or description to Claude for an estimate. Stored on this phone only.
+          Get one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>.</p>
+        <input id="api-key" type="password" autocomplete="off" placeholder="sk-ant-…">
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">Daily goals</h2>
+        <div class="goal-grid">
+          <label>Calories<input type="number" inputmode="numeric" id="goal-calories" min="0"></label>
+          <label>Protein (g)<input type="number" inputmode="numeric" id="goal-protein" min="0"></label>
+          <label>Carbs (g)<input type="number" inputmode="numeric" id="goal-carbs" min="0"></label>
+          <label>Fat (g)<input type="number" inputmode="numeric" id="goal-fat" min="0"></label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">Reminders</h2>
+        <label class="switch-row"><span>Nudge me if I haven't logged a meal</span><input type="checkbox" id="reminders-on"></label>
+        <div id="reminder-list" class="list"></div>
+        <div class="row">
+          <button id="add-reminder" class="btn ghost">Add reminder</button>
+          <button id="reminder-ics" class="btn ghost">Add to calendar</button>
+        </div>
+        <p id="reminder-note" class="hint"></p>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">Your data</h2>
+        <p class="hint">Everything is stored on this phone only. Export a backup now and then.</p>
+        <div class="row wrap">
+          <button id="export-json" class="btn ghost">Export backup</button>
+          <button id="export-csv" class="btn ghost">Export CSV</button>
+          <button id="import-json" class="btn ghost">Restore backup</button>
+        </div>
+        <input type="file" id="import-file" accept="application/json,.json" hidden>
+        <button id="wipe" class="btn danger">Delete all data</button>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button data-view="today" class="active"><span aria-hidden="true">◎</span>Today</button>
+    <button data-view="log" class="add"><span aria-hidden="true">＋</span>Log</button>
+    <button data-view="history"><span aria-hidden="true">▤</span>History</button>
+    <button data-view="settings"><span aria-hidden="true">⚙</span>Settings</button>
+  </nav>
+
+  <!-- Confirm / edit sheet -->
+  <dialog id="confirm" class="sheet">
+    <form method="dialog" id="confirm-form">
+      <div class="sheet-head">
+        <input id="confirm-name" class="title-input" aria-label="Meal name">
+        <button value="cancel" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+      <p id="confirm-notes" class="hint"></p>
+      <div id="confirm-items" class="items"></div>
+      <div id="confirm-total" class="total-row"></div>
+      <div class="row">
+        <label class="inline">Meal
+          <select id="confirm-meal">
+            <option value="breakfast">Breakfast</option>
+            <option value="lunch">Lunch</option>
+            <option value="dinner">Dinner</option>
+            <option value="snack">Snack</option>
+          </select>
+        </label>
+        <label class="inline"><input type="checkbox" id="confirm-fav"> Favorite</label>
+      </div>
+      <div class="row">
+        <button value="delete" id="confirm-delete" class="btn danger" hidden>Delete</button>
+        <button value="cancel" class="btn ghost">Cancel</button>
+        <button value="save" id="confirm-save" class="btn primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Barcode scanner -->
+  <dialog id="scanner" class="sheet">
+    <div class="sheet-head">
+      <strong>Scan a barcode</strong>
+      <button id="scanner-close" class="icon-btn" aria-label="Close">✕</button>
+    </div>
+    <video id="scanner-video" playsinline muted hidden></video>
+    <p id="scanner-hint" class="hint"></p>
+    <form id="barcode-form" class="row">
+      <input id="barcode-manual" inputmode="numeric" pattern="[0-9]*" placeholder="Or type the number">
+      <button class="btn primary">Look up</button>
+    </form>
+  </dialog>
+
+  <div id="busy" class="busy" hidden><div class="spinner"></div><span id="busy-text">Estimating…</span></div>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
