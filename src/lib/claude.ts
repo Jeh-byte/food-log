@@ -152,3 +152,44 @@ export async function mealIdeas(apiKey: string, opts: { meal: string; remaining:
   const res = await call<{ ideas: MealIdea[] }>(apiKey, IDEAS_SYSTEM, [{ type: 'text', text }], IDEAS_SCHEMA);
   return res.ideas;
 }
+
+const LANDMARK_SCHEMA = {
+  type: 'object',
+  properties: {
+    person_found: { type: 'boolean' },
+    neck_base_x: { type: 'number' },
+    neck_base_y: { type: 'number' },
+    navel_x: { type: 'number' },
+    navel_y: { type: 'number' },
+  },
+  required: ['person_found', 'neck_base_x', 'neck_base_y', 'navel_x', 'navel_y'],
+  additionalProperties: false,
+};
+
+const LANDMARK_SYSTEM = `You help line up a person's own fitness progress photos inside a private body-progress app.
+Find two points on the main person in the photo and give their positions on a 0–1000 scale, where x=0 is the
+left edge, x=1000 the right edge, y=0 the top edge and y=1000 the bottom edge of the image:
+1. neck_base: the base of the neck, where the neck meets the torso (the notch at the top of the breastbone from
+   the front; the front of the throat at collarbone height from the side; the bump at the top of the spine from behind).
+2. navel: the belly button from the front; the front of the stomach at belly-button height from the side; the
+   spine at belly-button height from behind. If clothing covers it, estimate where it is.
+Be as precise as you can. If there is no person whose torso is visible, set person_found to false and all numbers to 0.`;
+
+/** Finds the base of the neck and the belly button in a progress photo, as fractions of width and height. */
+export async function bodyLandmarks(apiKey: string, imageBase64: string) {
+  const r = await call<{ person_found: boolean; neck_base_x: number; neck_base_y: number; navel_x: number; navel_y: number }>(
+    apiKey,
+    LANDMARK_SYSTEM,
+    [
+      { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
+      { type: 'text', text: 'Find the base of the neck and the belly button.' },
+    ],
+    LANDMARK_SCHEMA,
+  );
+  if (!r.person_found) return null;
+  const f = (v: number) => Math.min(1, Math.max(0, v / 1000));
+  const pts: [[number, number], [number, number]] = [[f(r.neck_base_x), f(r.neck_base_y)], [f(r.navel_x), f(r.navel_y)]];
+  // Sanity check: the belly button must be clearly below the neck.
+  if (pts[1][1] - pts[0][1] < 0.05) return null;
+  return pts;
+}

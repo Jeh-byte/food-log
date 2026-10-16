@@ -6,6 +6,7 @@ import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
 import { Button, Card, Field, H2, Hint, IconButton, Label, Row, Screen, Segmented } from '@/components/ui';
 import * as db from '@/lib/db';
+import { deleteAllPhotoFiles } from '@/lib/body';
 import { fromDisplayWeight, toDisplayWeight } from '@/lib/activity';
 import { today } from '@/lib/dates';
 import {
@@ -115,10 +116,10 @@ export default function Settings() {
   function wipe() {
     Alert.alert(
       'Delete all data?',
-      'This deletes every meal, favorite, activity, weight and setting on this phone, including your API key. Export a backup first if you might want them.',
+      'This deletes every meal, favorite, activity, weight, measurement, progress photo and setting on this phone, including your API key. Export a backup first if you might want them (backups don’t include photos).',
       [
         { text: 'Cancel' },
-        { text: 'Delete everything', style: 'destructive', onPress: async () => { await db.wipeAll(); await saveReminders({ enabled: false, items: [] }); load(); } },
+        { text: 'Delete everything', style: 'destructive', onPress: async () => { await db.wipeAll(); deleteAllPhotoFiles(); await saveReminders({ enabled: false, items: [] }); load(); } },
       ],
     );
   }
@@ -241,7 +242,7 @@ export default function Settings() {
         <H2>Your data</H2>
         <Hint>
           Everything is stored on this phone only. Photos and descriptions are sent to Claude just for the estimate,
-          and barcodes to Open Food Facts. Export a backup now and then; uninstalling the app deletes its data.
+          and barcodes to Open Food Facts. Progress photos stay on the phone unless you use automatic line-up. Export a backup now and then; uninstalling the app deletes its data.
         </Hint>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           <Button title="Export backup" small onPress={exportJson} />

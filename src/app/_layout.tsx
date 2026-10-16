@@ -54,6 +54,10 @@ export default function RootLayout() {
         <Stack.Screen name="ideas" options={{ title: 'Meal ideas' }} />
         <Stack.Screen name="lesson/[id]" options={{ title: 'Lesson' }} />
         <Stack.Screen name="day/[date]" options={{ title: 'Day' }} />
+        <Stack.Screen name="photo/[id]" options={{ title: 'Progress photo' }} />
+        <Stack.Screen name="align/[id]" options={{ title: 'Line up photo' }} />
+        <Stack.Screen name="compare" options={{ title: 'Compare photos' }} />
+        <Stack.Screen name="measure" options={{ presentation: 'modal', title: 'Measurements' }} />
       </Stack>
       <StatusBar style="auto" />
     </>
