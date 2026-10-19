@@ -3,17 +3,18 @@ import { Alert, Modal, Pressable, Text, View, useWindowDimensions } from 'react-
 import { router, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { File } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { File, Paths } from 'expo-file-system';
 import { Busy, Button, Card, H2, Hint, Row, Screen, Segmented } from '@/components/ui';
 import { LineChart } from '@/components/charts';
 import { Thumb } from '@/components/body';
 import * as db from '@/lib/db';
 import {
-  MEASURES, POSES, addPhoto, firstPerDay, measureInfo, parseBodyCsv, saveImported, smallBase64,
+  MEASURES, POSES, addPhoto, bodyCsv, firstPerDay, measureInfo, parseBodyCsv, saveImported, smallBase64,
   type ImportRow, type MeasureKey,
 } from '@/lib/body';
 import { bodyLandmarks } from '@/lib/claude';
-import { shortDate } from '@/lib/dates';
+import { shortDate, today } from '@/lib/dates';
 import { useTheme } from '@/lib/theme';
 
 type PoseFilter = 'all' | db.Pose;
@@ -199,6 +200,21 @@ export default function Body() {
     );
   }
 
+  // ---- exporting for the Gym Progress desktop app ----
+
+  async function exportForPc() {
+    const { csv, days } = await bodyCsv();
+    if (!days) {
+      Alert.alert('Nothing to export yet', 'Log a weight or some measurements first.');
+      return;
+    }
+    const file = new File(Paths.cache, `body-data-${today()}.csv`);
+    if (file.exists) file.delete();
+    file.create();
+    file.write(csv);
+    await Sharing.shareAsync(file.uri, { mimeType: 'text/csv', dialogTitle: 'Send your body data to your PC' });
+  }
+
   // ---- measurements chart ----
 
   const series = meas.filter((m) => m.kind === kind);
@@ -290,7 +306,12 @@ export default function Body() {
           <Button title="Add measurements" small kind="primary" onPress={() => router.push('/measure')} style={{ flex: 1 }} />
           <Button title="Import files" small onPress={importFiles} style={{ flex: 1 }} />
         </Row>
-        <Hint>Import works with the eufy scale export (weight and circumference files) and measurement CSVs.</Hint>
+        <Button title="Send to Gym Progress on PC" small onPress={exportForPc} />
+        <Hint>
+          Import works with the eufy scale export, measurement CSVs and the Gym Progress app’s export. “Send to Gym
+          Progress” makes a file with all your weigh-ins and measurements: save it to your PC (email it to yourself
+          or save it to OneDrive) and import it there.
+        </Hint>
       </Card>
 
       <Modal visible={!!members} transparent animationType="fade" onRequestClose={() => setMembers(null)}>

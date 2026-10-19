@@ -297,6 +297,27 @@ export function firstPerDay(rows: ImportRow[]) {
   return days;
 }
 
+/**
+ * All weigh-ins and measurements as one CSV, one row per day. The Gym Progress desktop app
+ * imports this file, and its own export uses the same columns, so the two apps can swap data.
+ */
+export async function bodyCsv() {
+  const [weights, meas] = await Promise.all([db.weights(), db.measurements()]);
+  const days = new Map<string, Record<string, number>>();
+  for (const w of weights) days.set(w.date, { ...(days.get(w.date) ?? {}), weight: w.kg });
+  for (const m of meas) days.set(m.date, { ...(days.get(m.date) ?? {}), [m.kind]: m.value });
+  const cols: [string, string][] = [
+    ['weight', 'Weight (kg)'], ['bodyfat', 'Body Fat %'], ['waist', 'Waist (cm)'], ['hips', 'Hips (cm)'],
+    ['chest', 'Chest (cm)'], ['arms', 'Arms (cm)'], ['thighs', 'Thighs (cm)'],
+  ];
+  const lines = [['Date', ...cols.map((c) => c[1])].join(',')];
+  for (const date of [...days.keys()].sort()) {
+    const d = days.get(date)!;
+    lines.push([date, ...cols.map(([k]) => (d[k] === undefined ? '' : String(Math.round(d[k] * 10) / 10)))].join(','));
+  }
+  return { csv: lines.join('\n'), days: days.size };
+}
+
 /** Saves imported days. Returns how many values were written. */
 export async function saveImported(days: Map<string, ImportRow['values']>, replace: boolean) {
   const [weights, meas] = await Promise.all([db.weights(), db.measurements()]);
