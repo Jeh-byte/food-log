@@ -6,7 +6,7 @@ import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
 import { Button, Card, Field, H2, Hint, IconButton, Label, Row, Screen, Segmented } from '@/components/ui';
 import * as db from '@/lib/db';
-import { deleteAllPhotoFiles } from '@/lib/body';
+import { deleteAllPhotoFiles } from '@/lib/gym';
 import { fromDisplayWeight, toDisplayWeight } from '@/lib/activity';
 import { today } from '@/lib/dates';
 import {

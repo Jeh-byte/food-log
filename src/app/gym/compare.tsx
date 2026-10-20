@@ -1,10 +1,12 @@
-import { useCallback, useState } from 'react';
-import { Modal, ScrollView, Switch, Text, View, useWindowDimensions } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { Alert, Modal, ScrollView, Switch, Text, View, useWindowDimensions } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import * as Sharing from 'expo-sharing';
+import { captureRef } from 'react-native-view-shot';
 import { Button, Card, H2, Hint, Row, Screen, Segmented } from '@/components/ui';
-import { AlignedPhoto, PhotoTag, SliderBar, Thumb, WipeCompare } from '@/components/body';
+import { AlignedPhoto, PhotoTag, SliderBar, Thumb, WipeCompare } from '@/components/gym';
 import * as db from '@/lib/db';
-import { MEASURES, PANEL_RATIO, nearest } from '@/lib/body';
+import { MEASURES, PANEL_RATIO, nearest } from '@/lib/gym';
 import { toDisplayWeight } from '@/lib/activity';
 import { daysBetween, shortDate } from '@/lib/dates';
 import { useTheme } from '@/lib/theme';
@@ -16,11 +18,13 @@ const AFTER = '#3FD28A';
 export default function Compare() {
   const t = useTheme();
   const { width } = useWindowDimensions();
-  const [photos, setPhotos] = useState<db.BodyPhoto[]>([]);
-  const [before, setBefore] = useState<db.BodyPhoto | null>(null);
-  const [after, setAfter] = useState<db.BodyPhoto | null>(null);
+  const [photos, setPhotos] = useState<db.GymPhoto[]>([]);
+  const [before, setBefore] = useState<db.GymPhoto | null>(null);
+  const [after, setAfter] = useState<db.GymPhoto | null>(null);
   const [mode, setMode] = useState<Mode>('side');
   const [aligned, setAligned] = useState(true);
+  const [straighten, setStraighten] = useState(true);
+  const shot = useRef<View>(null);
   const [opacity, setOpacity] = useState(0.5);
   const [picking, setPicking] = useState<'before' | 'after' | null>(null);
   const [weights, setWeights] = useState<{ date: string; kg: number }[]>([]);
@@ -29,8 +33,8 @@ export default function Compare() {
 
   const load = useCallback(async () => {
     const [all, sel, w, m, p] = await Promise.all([
-      db.bodyPhotos(), db.getSetting<{ before?: string; after?: string }>('compare', {}),
-      db.weights(), db.measurements(), db.getProfile(),
+      db.gymPhotos(), db.getSetting<{ before?: string; after?: string }>('compare', {}),
+      db.weights(), db.gymMeasurements(), db.getProfile(),
     ]);
     setPhotos(all);
     setWeights(w);
@@ -43,7 +47,7 @@ export default function Compare() {
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  async function choose(p: db.BodyPhoto) {
+  async function choose(p: db.GymPhoto) {
     const role = picking;
     setPicking(null);
     if (!role) return;
@@ -51,6 +55,25 @@ export default function Compare() {
     else setAfter(p);
     const sel = await db.getSetting<{ before?: string; after?: string }>('compare', {});
     await db.setSetting('compare', { ...sel, [role]: p.id });
+  }
+
+  async function firstVsLatest() {
+    const pose = before?.pose ?? 'front';
+    const pool = photos.some((x) => x.pose === pose) ? photos.filter((x) => x.pose === pose) : photos;
+    const first = pool[0] ?? null, last = pool[pool.length - 1] ?? null;
+    setBefore(first);
+    setAfter(last);
+    await db.setSetting('compare', { before: first?.id, after: last?.id });
+  }
+
+  /** Saves the comparison and its changes as one picture and opens the share sheet. */
+  async function share() {
+    try {
+      const uri = await captureRef(shot, { format: 'jpg', quality: 0.9, result: 'tmpfile' });
+      await Sharing.shareAsync(uri, { mimeType: 'image/jpeg', dialogTitle: 'Share your before and after' });
+    } catch (e) {
+      Alert.alert('Couldn’t make the image', (e as Error).message);
+    }
   }
 
   async function swap() {
@@ -62,7 +85,7 @@ export default function Compare() {
   if (!photos.length) {
     return (
       <Screen>
-        <Hint>Add some progress photos on the Body tab first.</Hint>
+        <Hint>Add some progress photos on the Gym tab first.</Hint>
         <Button title="Back" onPress={() => router.back()} />
       </Screen>
     );
@@ -73,8 +96,8 @@ export default function Compare() {
   const panelW = mode === 'side' ? sideW : fullW;
   const panelH = panelW / PANEL_RATIO;
 
-  const wOn = (p: db.BodyPhoto | null) => (p ? nearest(weights, p.date, 3) : null);
-  const label = (role: string, p: db.BodyPhoto | null) => {
+  const wOn = (p: db.GymPhoto | null) => (p ? nearest(weights, p.date, 3) : null);
+  const label = (role: string, p: db.GymPhoto | null) => {
     if (!p) return role;
     const w = wOn(p);
     return `${role} · ${shortDate(p.date)}${w ? ` · ${toDisplayWeight(w.kg, profile.units).toFixed(1)} ${profile.units}` : ''}`;
@@ -116,38 +139,50 @@ export default function Compare() {
         options={[{ value: 'side', label: 'Side by side' }, { value: 'wipe', label: 'Slider' }, { value: 'overlay', label: 'Overlay' }]}
       />
 
-      {mode === 'side' && (
-        <Row style={{ alignItems: 'flex-start' }}>
-          <View>
-            <AlignedPhoto photo={before} width={panelW} height={panelH} aligned={aligned} />
-            <PhotoTag text={label('BEFORE', before)} color={BEFORE} />
-          </View>
-          <View>
-            <AlignedPhoto photo={after} width={panelW} height={panelH} aligned={aligned} />
-            <PhotoTag text={label('AFTER', after)} color={AFTER} />
-          </View>
-        </Row>
-      )}
-      {mode === 'wipe' && (
-        <View>
-          <WipeCompare before={before} after={after} width={panelW} height={panelH} aligned={aligned} />
-          <PhotoTag text={label('BEFORE', before)} color={BEFORE} />
-          <PhotoTag text={label('AFTER', after)} color={AFTER} right />
-        </View>
-      )}
-      {mode === 'overlay' && (
-        <View>
-          <View style={{ width: panelW, height: panelH }}>
-            <AlignedPhoto photo={before} width={panelW} height={panelH} aligned={aligned} />
-            <View style={{ position: 'absolute', left: 0, top: 0 }}>
-              <AlignedPhoto photo={after} width={panelW} height={panelH} aligned={aligned} opacity={opacity} />
+      <View ref={shot} collapsable={false} style={{ gap: 12, backgroundColor: t.bg }}>
+        {mode === 'side' && (
+          <Row style={{ alignItems: 'flex-start' }}>
+            <View>
+              <AlignedPhoto photo={before} width={panelW} height={panelH} aligned={aligned} straighten={straighten} />
+              <PhotoTag text={label('BEFORE', before)} color={BEFORE} />
             </View>
+            <View>
+              <AlignedPhoto photo={after} width={panelW} height={panelH} aligned={aligned} straighten={straighten} />
+              <PhotoTag text={label('AFTER', after)} color={AFTER} />
+            </View>
+          </Row>
+        )}
+        {mode === 'wipe' && (
+          <View>
+            <WipeCompare before={before} after={after} width={panelW} height={panelH} aligned={aligned} straighten={straighten} />
+            <PhotoTag text={label('BEFORE', before)} color={BEFORE} />
+            <PhotoTag text={label('AFTER', after)} color={AFTER} right />
           </View>
-          <PhotoTag text={label('BEFORE', before)} color={BEFORE} />
-          <PhotoTag text={label('AFTER', after)} color={AFTER} right />
+        )}
+        {mode === 'overlay' && (
+          <View>
+            <View style={{ width: panelW, height: panelH }}>
+              <AlignedPhoto photo={before} width={panelW} height={panelH} aligned={aligned} straighten={straighten} />
+              <View style={{ position: 'absolute', left: 0, top: 0 }}>
+                <AlignedPhoto photo={after} width={panelW} height={panelH} aligned={aligned} straighten={straighten} opacity={opacity} />
+              </View>
+            </View>
+            <PhotoTag text={label('BEFORE', before)} color={BEFORE} />
+            <PhotoTag text={label('AFTER', after)} color={AFTER} right />
+          </View>
+        )}
+        {changes.length > 0 && (
+          <Card>
+            <H2>What changed</H2>
+            {changes.map((c) => <Text key={c} style={{ color: t.text, fontSize: 15 }}>{c}</Text>)}
+          </Card>
+        )}
+      </View>
+      {mode === 'overlay' && (
+        <>
           <Hint>See-through “after” photo: {Math.round(opacity * 100)}%</Hint>
           <SliderBar value={opacity} onChange={setOpacity} />
-        </View>
+        </>
       )}
       {mode === 'wipe' && <Hint>Drag across the photo to wipe between before and after.</Hint>}
 
@@ -155,18 +190,20 @@ export default function Compare() {
         <Text style={{ color: t.text, fontSize: 15 }}>Line up photos</Text>
         <Switch value={aligned} onValueChange={setAligned} trackColor={{ true: t.accent }} />
       </Row>
+      <Row style={{ justifyContent: 'space-between' }}>
+        <Text style={{ color: t.text, fontSize: 15 }}>Straighten tilted photos</Text>
+        <Switch value={straighten} disabled={!aligned} onValueChange={setStraighten} trackColor={{ true: t.accent }} />
+      </Row>
       {aligned && missing && (
         <Hint style={{ color: t.star }}>
-          One of these photos isn’t lined up yet. Open it from the Body tab and tap “Line up this photo”.
+          One of these photos isn’t lined up yet. Open it from the Gym tab and tap “Line up this photo”.
         </Hint>
       )}
 
-      {changes.length > 0 && (
-        <Card>
-          <H2>What changed</H2>
-          {changes.map((c) => <Text key={c} style={{ color: t.text, fontSize: 15 }}>{c}</Text>)}
-        </Card>
-      )}
+      <Row>
+        <Button title="First vs latest" small onPress={firstVsLatest} style={{ flex: 1 }} />
+        <Button title="Share image" small kind="primary" onPress={share} disabled={!before || !after} style={{ flex: 1 }} />
+      </Row>
 
       <Modal visible={!!picking} animationType="slide" onRequestClose={() => setPicking(null)}>
         <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: 16 }}>

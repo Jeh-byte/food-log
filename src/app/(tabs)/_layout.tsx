@@ -27,7 +27,7 @@ export default function TabLayout() {
       <Tabs.Screen name="index" options={{ title: 'Today', tabBarIcon: icon('pie-chart-outline') }} />
       <Tabs.Screen name="log" options={{ title: 'Log food', tabBarLabel: 'Log', tabBarIcon: icon('add-circle') }} />
       <Tabs.Screen name="progress" options={{ title: 'Progress', tabBarIcon: icon('stats-chart-outline') }} />
-      <Tabs.Screen name="body" options={{ title: 'Body', tabBarIcon: icon('body-outline') }} />
+      <Tabs.Screen name="gym" options={{ title: 'Gym', tabBarIcon: icon('barbell-outline') }} />
       <Tabs.Screen name="learn" options={{ title: 'Learn', tabBarIcon: icon('book-outline') }} />
       <Tabs.Screen name="settings" options={{ title: 'Settings', tabBarIcon: icon('settings-outline') }} />
     </Tabs>

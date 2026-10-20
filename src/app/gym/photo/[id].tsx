@@ -2,9 +2,9 @@ import { useCallback, useState } from 'react';
 import { Alert, View, useWindowDimensions } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Button, Card, Field, Hint, Label, Row, Screen, Segmented } from '@/components/ui';
-import { AlignedPhoto } from '@/components/body';
+import { AlignedPhoto } from '@/components/gym';
 import * as db from '@/lib/db';
-import { POSES, deletePhoto } from '@/lib/body';
+import { POSES, deletePhoto } from '@/lib/gym';
 import { addDays, friendlyDate } from '@/lib/dates';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -12,11 +12,11 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 export default function PhotoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { width } = useWindowDimensions();
-  const [photo, setPhoto] = useState<db.BodyPhoto | null>(null);
+  const [photo, setPhoto] = useState<db.GymPhoto | null>(null);
   const [dateText, setDateText] = useState('');
 
   const load = useCallback(async () => {
-    const p = await db.getBodyPhoto(id);
+    const p = await db.getGymPhoto(id);
     setPhoto(p);
     if (p) setDateText(p.date);
   }, [id]);
@@ -27,18 +27,18 @@ export default function PhotoScreen() {
   const w = width - 32;
   const h = (photo.height / photo.width) * w;
 
-  async function update(patch: Partial<db.BodyPhoto>) {
+  async function update(patch: Partial<db.GymPhoto>) {
     if (!photo) return;
     const next = { ...photo, ...patch };
     setPhoto(next);
-    await db.saveBodyPhoto(next);
+    await db.saveGymPhoto(next);
   }
 
   async function chooseFor(role: 'before' | 'after') {
     if (!photo) return;
     const sel = await db.getSetting<{ before?: string; after?: string }>('compare', {});
     await db.setSetting('compare', { ...sel, [role]: photo.id });
-    router.push('/compare');
+    router.push('/gym/compare');
   }
 
   function remove() {
@@ -77,7 +77,7 @@ export default function PhotoScreen() {
         <Button
           title={photo.align ? 'Check line-up' : 'Line up this photo'}
           kind={photo.align ? 'ghost' : 'primary'}
-          onPress={() => router.push({ pathname: '/align/[id]', params: { id: photo.id } })}
+          onPress={() => router.push({ pathname: '/gym/align/[id]', params: { id: photo.id } })}
         />
       </Card>
       <Row>

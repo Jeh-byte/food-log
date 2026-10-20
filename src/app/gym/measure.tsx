@@ -3,7 +3,7 @@ import { Alert, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Button, Card, Field, Hint, Label, Row, Screen } from '@/components/ui';
 import * as db from '@/lib/db';
-import { MEASURES } from '@/lib/body';
+import { MEASURES } from '@/lib/gym';
 import { addDays, friendlyDate, today } from '@/lib/dates';
 import { useTheme } from '@/lib/theme';
 
@@ -15,7 +15,7 @@ export default function MeasureScreen() {
   const [saved, setSaved] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
-    const all = (await db.measurements()).filter((m) => m.date === date);
+    const all = (await db.gymMeasurements()).filter((m) => m.date === date);
     const v = Object.fromEntries(all.map((m) => [m.kind, m.value]));
     setSaved(v);
     setValues(Object.fromEntries(all.map((m) => [m.kind, String(m.value)])));
@@ -26,7 +26,7 @@ export default function MeasureScreen() {
     for (const m of MEASURES) {
       const raw = (values[m.key] ?? '').trim().replace(',', '.');
       if (!raw) {
-        if (saved[m.key] !== undefined) await db.deleteMeasurement(date, m.key);
+        if (saved[m.key] !== undefined) await db.deleteGymMeasurement(date, m.key);
         continue;
       }
       const v = Number(raw);
@@ -35,7 +35,7 @@ export default function MeasureScreen() {
         Alert.alert('Check the number', `${m.label} doesn’t look right (${raw} ${m.unit}).`);
         return;
       }
-      await db.saveMeasurement(date, m.key, v);
+      await db.saveGymMeasurement(date, m.key, v);
     }
     router.back();
   }

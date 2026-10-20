@@ -28,10 +28,10 @@ A private food diary for Android, built with Expo (React Native and TypeScript).
 - **History and trends.** Weekly calorie and step charts against your goals, weekly averages, a month calendar (tap a day to see it), and a weight chart.
 - **Streaks and badges.** Current and best logging streaks, plus 12 badges for logging, lessons and activity.
 
-**Body progress**
+**Gym progress (Gym tab)**
 - **Progress photos.** Take or pick front, side and back photos (several at once from the gallery). The photo date comes from the picture itself.
 - **Line them up.** Mark two points on each photo (base of neck, belly button), or let Claude find them, and every photo is sized, moved and straightened to match, even if you stood closer or further away.
-- **Compare.** Any two photos side by side, with a drag-to-wipe slider, or as a see-through overlay. Shows the days between them and how your weight and measurements changed.
+- **Compare.** Any two photos side by side, with a drag-to-wipe slider, or as a see-through overlay. Shows the days between them and how your weight and measurements changed, and shares the comparison as one image.
 - **Measurements.** Log waist, hips, chest, arms, thighs and body fat, with a chart for each.
 - **Import.** Bring in the eufy scale export (weight and circumference files; it asks whose readings to use) and measurement CSVs such as ones made from Me 360 or ZOZOFIT scans.
 

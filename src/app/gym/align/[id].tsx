@@ -3,7 +3,7 @@ import { Alert, Image, StyleSheet, Text, View, useWindowDimensions } from 'react
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Busy, Button, Hint, Row, Screen } from '@/components/ui';
 import * as db from '@/lib/db';
-import { ALIGN_HELP, photoUri, smallBase64 } from '@/lib/body';
+import { ALIGN_HELP, photoUri, smallBase64 } from '@/lib/gym';
 import { bodyLandmarks } from '@/lib/claude';
 import { shortDate } from '@/lib/dates';
 import { useTheme } from '@/lib/theme';
@@ -14,13 +14,13 @@ export default function AlignScreen() {
   const t = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { width, height: winH } = useWindowDimensions();
-  const [photo, setPhoto] = useState<db.BodyPhoto | null>(null);
+  const [photo, setPhoto] = useState<db.GymPhoto | null>(null);
   const [pts, setPts] = useState<[number, number][]>([]);
   const [drag, setDrag] = useState<number | null>(null);
   const [busy, setBusy] = useState('');
 
   const load = useCallback(async () => {
-    const p = await db.getBodyPhoto(id);
+    const p = await db.getGymPhoto(id);
     setPhoto(p);
     setPts(p?.align ? [...p.align] : []);
   }, [id]);
@@ -67,11 +67,11 @@ export default function AlignScreen() {
   async function save(goNext: boolean) {
     if (!photo) return;
     const align = pts.length === 2 ? ([pts[0], pts[1]] as db.AlignPoints) : null;
-    await db.saveBodyPhoto({ ...photo, align, auto: false });
+    await db.saveGymPhoto({ ...photo, align, auto: false });
     if (goNext) {
-      const next = (await db.bodyPhotos()).find((p) => !p.align && p.id !== photo.id);
+      const next = (await db.gymPhotos()).find((p) => !p.align && p.id !== photo.id);
       if (next) {
-        router.replace({ pathname: '/align/[id]', params: { id: next.id } });
+        router.replace({ pathname: '/gym/align/[id]', params: { id: next.id } });
         return;
       }
     }

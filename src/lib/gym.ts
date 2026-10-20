@@ -39,12 +39,12 @@ export const ALIGN_HELP: Record<db.Pose, [string, string]> = {
 const MAX_SIDE = 1600;
 
 function photoDir() {
-  const dir = new Directory(Paths.document, 'body-photos');
+  const dir = new Directory(Paths.document, 'gym-photos');
   if (!dir.exists) dir.create();
   return dir;
 }
 
-export const photoUri = (p: db.BodyPhoto) => new File(photoDir(), p.file).uri;
+export const photoUri = (p: db.GymPhoto) => new File(photoDir(), p.file).uri;
 
 /** "2026:07:08 22:01:11" (EXIF) -> "2026-07-08" */
 function exifDate(exif: Record<string, unknown> | null | undefined) {
@@ -66,7 +66,7 @@ export async function addPhoto(
   const id = db.uid();
   const file = `${id}.jpg`;
   new File(img.uri).move(new File(photoDir(), file));
-  const photo: db.BodyPhoto = {
+  const photo: db.GymPhoto = {
     id,
     date: exifDate(asset.exif) ?? today(),
     pose,
@@ -76,27 +76,27 @@ export async function addPhoto(
     align: null,
     auto: false,
   };
-  await db.saveBodyPhoto(photo);
+  await db.saveGymPhoto(photo);
   return photo;
 }
 
-export async function deletePhoto(p: db.BodyPhoto) {
+export async function deletePhoto(p: db.GymPhoto) {
   try {
     const f = new File(photoDir(), p.file);
     if (f.exists) f.delete();
   } catch {}
-  await db.deleteBodyPhotoRow(p.id);
+  await db.deleteGymPhotoRow(p.id);
 }
 
 export function deleteAllPhotoFiles() {
   try {
-    const dir = new Directory(Paths.document, 'body-photos');
+    const dir = new Directory(Paths.document, 'gym-photos');
     if (dir.exists) dir.delete();
   } catch {}
 }
 
 /** A small JPEG of the photo as base64, for the automatic line-up. */
-export async function smallBase64(p: db.BodyPhoto) {
+export async function smallBase64(p: db.GymPhoto) {
   const ctx = ImageManipulator.manipulate(photoUri(p));
   ctx.resize(p.width >= p.height ? { width: 768 } : { height: 768 });
   const img = await (await ctx.renderAsync()).saveAsync({ format: SaveFormat.JPEG, compress: 0.7, base64: true });
@@ -105,10 +105,13 @@ export async function smallBase64(p: db.BodyPhoto) {
 
 // ---- alignment ----
 
-/** Where the two points land in every comparison panel (fractions of the panel). */
-export const ANCHOR_A = { x: 0.5, y: 0.24 };
-export const ANCHOR_B = { x: 0.5, y: 0.56 };
-export const PANEL_RATIO = 3 / 4; // width / height
+/**
+ * Where the two points land in every comparison panel (fractions of the panel). Neck to belly button
+ * is roughly a quarter of standing height, so this leaves room for the whole body, head to feet.
+ */
+export const ANCHOR_A = { x: 0.5, y: 0.16 };
+export const ANCHOR_B = { x: 0.5, y: 0.33 };
+export const PANEL_RATIO = 2 / 3; // width / height
 
 export type Placement = { scale: number; angle: number; tx: number; ty: number };
 
@@ -117,7 +120,7 @@ export type Placement = { scale: number; angle: number; tx: number; ty: number }
  * With alignment points, the neck and belly button land on the same spots in every photo,
  * so photos taken closer, further away or slightly tilted still line up.
  */
-export function placement(p: db.BodyPhoto, w: number, h: number, aligned: boolean): Placement {
+export function placement(p: db.GymPhoto, w: number, h: number, aligned: boolean, straighten = true): Placement {
   const iw = p.width, ih = p.height;
   if (aligned && p.align) {
     const [[ax, ay], [bx, by]] = p.align;
@@ -126,7 +129,7 @@ export function placement(p: db.BodyPhoto, w: number, h: number, aligned: boolea
     if (srcLen > 2) {
       const tax = ANCHOR_A.x * w, tay = ANCHOR_A.y * h, tbx = ANCHOR_B.x * w, tby = ANCHOR_B.y * h;
       const scale = Math.hypot(tbx - tax, tby - tay) / srcLen;
-      const angle = Math.atan2(tby - tay, tbx - tax) - Math.atan2(ey - sy, ex - sx);
+      const angle = straighten ? Math.atan2(tby - tay, tbx - tax) - Math.atan2(ey - sy, ex - sx) : 0;
       const c = Math.cos(angle) * scale, s = Math.sin(angle) * scale;
       return { scale, angle, tx: tax - (c * sx - s * sy), ty: tay - (s * sx + c * sy) };
     }
@@ -139,7 +142,7 @@ export function placement(p: db.BodyPhoto, w: number, h: number, aligned: boolea
  * React Native transforms rotate/scale around the view's centre, so convert the placement above
  * into a transform list for an Image laid out at (0, 0) with the photo's pixel size.
  */
-export function placementTransform(p: db.BodyPhoto, pl: Placement): TransformList {
+export function placementTransform(p: db.GymPhoto, pl: Placement): TransformList {
   const cx = p.width / 2, cy = p.height / 2;
   const c = Math.cos(pl.angle) * pl.scale, s = Math.sin(pl.angle) * pl.scale;
   const ux = pl.tx - cx + (c * cx - s * cy);
@@ -302,7 +305,7 @@ export function firstPerDay(rows: ImportRow[]) {
  * imports this file, and its own export uses the same columns, so the two apps can swap data.
  */
 export async function bodyCsv() {
-  const [weights, meas] = await Promise.all([db.weights(), db.measurements()]);
+  const [weights, meas] = await Promise.all([db.weights(), db.gymMeasurements()]);
   const days = new Map<string, Record<string, number>>();
   for (const w of weights) days.set(w.date, { ...(days.get(w.date) ?? {}), weight: w.kg });
   for (const m of meas) days.set(m.date, { ...(days.get(m.date) ?? {}), [m.kind]: m.value });
@@ -320,7 +323,7 @@ export async function bodyCsv() {
 
 /** Saves imported days. Returns how many values were written. */
 export async function saveImported(days: Map<string, ImportRow['values']>, replace: boolean) {
-  const [weights, meas] = await Promise.all([db.weights(), db.measurements()]);
+  const [weights, meas] = await Promise.all([db.weights(), db.gymMeasurements()]);
   const haveW = new Set(weights.map((w) => w.date));
   const haveM = new Set(meas.map((m) => `${m.date}|${m.kind}`));
   let n = 0;
@@ -331,7 +334,7 @@ export async function saveImported(days: Map<string, ImportRow['values']>, repla
       if (k === 'weight') {
         if (replace || !haveW.has(date)) { await db.saveWeight(date, value); n++; }
       } else if (replace || !haveM.has(`${date}|${k}`)) {
-        await db.saveMeasurement(date, k, value);
+        await db.saveGymMeasurement(date, k, value);
         n++;
       }
     }

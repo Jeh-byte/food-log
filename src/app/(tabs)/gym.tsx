@@ -7,24 +7,24 @@ import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
 import { Busy, Button, Card, H2, Hint, Row, Screen, Segmented } from '@/components/ui';
 import { LineChart } from '@/components/charts';
-import { Thumb } from '@/components/body';
+import { Thumb } from '@/components/gym';
 import * as db from '@/lib/db';
 import {
   MEASURES, POSES, addPhoto, bodyCsv, firstPerDay, measureInfo, parseBodyCsv, saveImported, smallBase64,
   type ImportRow, type MeasureKey,
-} from '@/lib/body';
+} from '@/lib/gym';
 import { bodyLandmarks } from '@/lib/claude';
 import { shortDate, today } from '@/lib/dates';
 import { useTheme } from '@/lib/theme';
 
 type PoseFilter = 'all' | db.Pose;
 
-export default function Body() {
+export default function Gym() {
   const t = useTheme();
   const { width } = useWindowDimensions();
   const chartW = width - 32 - 28;
   const thumbW = Math.floor((width - 32 - 28 - 16) / 3);
-  const [photos, setPhotos] = useState<db.BodyPhoto[]>([]);
+  const [photos, setPhotos] = useState<db.GymPhoto[]>([]);
   const [meas, setMeas] = useState<db.Measurement[]>([]);
   const [pose, setPose] = useState<PoseFilter>('all');
   const [kind, setKind] = useState<MeasureKey>('waist');
@@ -33,7 +33,7 @@ export default function Body() {
   const [members, setMembers] = useState<{ rows: ImportRow[]; names: [string, number][] } | null>(null);
 
   const load = useCallback(async () => {
-    const [p, m] = await Promise.all([db.bodyPhotos(), db.measurements()]);
+    const [p, m] = await Promise.all([db.gymPhotos(), db.gymMeasurements()]);
     setPhotos(p);
     setMeas(m);
   }, []);
@@ -68,7 +68,7 @@ export default function Body() {
     if (res.canceled || !res.assets.length) return;
     const p = await askPose();
     if (!p) return;
-    const added: db.BodyPhoto[] = [];
+    const added: db.GymPhoto[] = [];
     try {
       for (let i = 0; i < res.assets.length; i++) {
         setBusy(`Adding photo ${i + 1} of ${res.assets.length}…`);
@@ -86,7 +86,7 @@ export default function Body() {
         'Line them up so photos taken at different distances compare fairly?',
         [
           { text: 'Later' },
-          { text: 'Do it myself', onPress: () => router.push({ pathname: '/align/[id]', params: { id: added[0].id } }) },
+          { text: 'Do it myself', onPress: () => router.push({ pathname: '/gym/align/[id]', params: { id: added[0].id } }) },
           { text: 'Automatically', onPress: () => autoAlign(added) },
         ],
       );
@@ -95,7 +95,7 @@ export default function Body() {
 
   // ---- automatic line-up ----
 
-  async function autoAlign(list: db.BodyPhoto[]) {
+  async function autoAlign(list: db.GymPhoto[]) {
     if (!list.length) {
       Alert.alert('All lined up', 'Every photo already has its line-up points.');
       return;
@@ -127,7 +127,7 @@ export default function Body() {
         setBusy(`Lining up photo ${i + 1} of ${list.length}…`);
         const pts = await bodyLandmarks(key, await smallBase64(list[i]));
         if (pts) {
-          await db.saveBodyPhoto({ ...list[i], align: pts, auto: true });
+          await db.saveGymPhoto({ ...list[i], align: pts, auto: true });
           done++;
         } else failed++;
       }
@@ -241,13 +241,13 @@ export default function Body() {
             />
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {(showAll ? shown : shown.slice(0, 9)).map((p) => (
-                <Thumb key={p.id} photo={p} size={thumbW} onPress={() => router.push({ pathname: '/photo/[id]', params: { id: p.id } })} />
+                <Thumb key={p.id} photo={p} size={thumbW} onPress={() => router.push({ pathname: '/gym/photo/[id]', params: { id: p.id } })} />
               ))}
             </View>
             {shown.length > 9 && (
               <Button title={showAll ? 'Show fewer' : `Show all ${shown.length}`} small onPress={() => setShowAll(!showAll)} />
             )}
-            <Button title="Compare two photos" kind="primary" onPress={() => router.push('/compare')} />
+            <Button title="Compare two photos" kind="primary" onPress={() => router.push('/gym/compare')} />
           </>
         )}
         {!photos.length && (
@@ -271,7 +271,7 @@ export default function Body() {
               title="Myself"
               small
               disabled={!unaligned.length}
-              onPress={() => router.push({ pathname: '/align/[id]', params: { id: unaligned[0].id } })}
+              onPress={() => router.push({ pathname: '/gym/align/[id]', params: { id: unaligned[0].id } })}
               style={{ flex: 1 }}
             />
           </Row>
@@ -303,7 +303,7 @@ export default function Body() {
           );
         })}
         <Row>
-          <Button title="Add measurements" small kind="primary" onPress={() => router.push('/measure')} style={{ flex: 1 }} />
+          <Button title="Add measurements" small kind="primary" onPress={() => router.push('/gym/measure')} style={{ flex: 1 }} />
           <Button title="Import files" small onPress={importFiles} style={{ flex: 1 }} />
         </Row>
         <Button title="Send to Gym Progress on PC" small onPress={exportForPc} />

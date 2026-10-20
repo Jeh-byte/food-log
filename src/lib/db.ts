@@ -39,11 +39,11 @@ async function migrate(db: SQLite.SQLiteDatabase) {
   `);
   // v2: progress photos and body measurements.
   if (version < 2) await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS body_photos (
+    CREATE TABLE IF NOT EXISTS gym_photos (
       id TEXT PRIMARY KEY NOT NULL, date TEXT NOT NULL, pose TEXT NOT NULL, file TEXT NOT NULL,
       width INTEGER NOT NULL, height INTEGER NOT NULL, align TEXT, auto INTEGER NOT NULL DEFAULT 0);
-    CREATE INDEX IF NOT EXISTS body_photos_date ON body_photos (date);
-    CREATE TABLE IF NOT EXISTS measurements (
+    CREATE INDEX IF NOT EXISTS gym_photos_date ON gym_photos (date);
+    CREATE TABLE IF NOT EXISTS gym_measurements (
       date TEXT NOT NULL, kind TEXT NOT NULL, value REAL NOT NULL, PRIMARY KEY (date, kind));
     PRAGMA user_version = 2;
   `);
@@ -173,65 +173,65 @@ export async function deleteWeight(date: string) {
 export type AlignPoints = [[number, number], [number, number]];
 export type Pose = 'front' | 'side' | 'back';
 
-export type BodyPhoto = {
+export type GymPhoto = {
   id: string;
   date: string;
   pose: Pose;
-  file: string; // file name inside the app's body-photos folder
+  file: string; // file name inside the app's gym-photos folder
   width: number;
   height: number;
   align: AlignPoints | null;
   auto: boolean; // points were placed automatically
 };
 
-type BodyPhotoRow = Omit<BodyPhoto, 'align' | 'auto'> & { align: string | null; auto: number };
-const toBodyPhoto = (r: BodyPhotoRow): BodyPhoto => ({
+type GymPhotoRow = Omit<GymPhoto, 'align' | 'auto'> & { align: string | null; auto: number };
+const toGymPhoto = (r: GymPhotoRow): GymPhoto => ({
   ...r,
   align: r.align ? (JSON.parse(r.align) as AlignPoints) : null,
   auto: !!r.auto,
 });
 
-export async function bodyPhotos() {
+export async function gymPhotos() {
   const db = await getDb();
-  const rows = await db.getAllAsync<BodyPhotoRow>('SELECT * FROM body_photos ORDER BY date, id');
-  return rows.map(toBodyPhoto);
+  const rows = await db.getAllAsync<GymPhotoRow>('SELECT * FROM gym_photos ORDER BY date, id');
+  return rows.map(toGymPhoto);
 }
 
-export async function getBodyPhoto(id: string) {
+export async function getGymPhoto(id: string) {
   const db = await getDb();
-  const row = await db.getFirstAsync<BodyPhotoRow>('SELECT * FROM body_photos WHERE id = ?', id);
-  return row ? toBodyPhoto(row) : null;
+  const row = await db.getFirstAsync<GymPhotoRow>('SELECT * FROM gym_photos WHERE id = ?', id);
+  return row ? toGymPhoto(row) : null;
 }
 
-export async function saveBodyPhoto(p: BodyPhoto) {
+export async function saveGymPhoto(p: GymPhoto) {
   const db = await getDb();
   await db.runAsync(
-    'INSERT OR REPLACE INTO body_photos (id, date, pose, file, width, height, align, auto) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT OR REPLACE INTO gym_photos (id, date, pose, file, width, height, align, auto) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     p.id, p.date, p.pose, p.file, p.width, p.height, p.align ? JSON.stringify(p.align) : null, p.auto ? 1 : 0);
 }
 
-export async function deleteBodyPhotoRow(id: string) {
+export async function deleteGymPhotoRow(id: string) {
   const db = await getDb();
-  await db.runAsync('DELETE FROM body_photos WHERE id = ?', id);
+  await db.runAsync('DELETE FROM gym_photos WHERE id = ?', id);
 }
 
 // ---- body measurements (cm, and body fat %) ----
 
 export type Measurement = { date: string; kind: string; value: number };
 
-export async function measurements() {
+export async function gymMeasurements() {
   const db = await getDb();
-  return db.getAllAsync<Measurement>('SELECT * FROM measurements ORDER BY date');
+  return db.getAllAsync<Measurement>('SELECT * FROM gym_measurements ORDER BY date');
 }
 
-export async function saveMeasurement(date: string, kind: string, value: number) {
+export async function saveGymMeasurement(date: string, kind: string, value: number) {
   const db = await getDb();
-  await db.runAsync('INSERT OR REPLACE INTO measurements (date, kind, value) VALUES (?, ?, ?)', date, kind, value);
+  await db.runAsync('INSERT OR REPLACE INTO gym_measurements (date, kind, value) VALUES (?, ?, ?)', date, kind, value);
 }
 
-export async function deleteMeasurement(date: string, kind: string) {
+export async function deleteGymMeasurement(date: string, kind: string) {
   const db = await getDb();
-  await db.runAsync('DELETE FROM measurements WHERE date = ? AND kind = ?', date, kind);
+  await db.runAsync('DELETE FROM gym_measurements WHERE date = ? AND kind = ?', date, kind);
 }
 
 // ---- lessons ----
@@ -288,9 +288,9 @@ export async function exportAll() {
     favorites: (await all('favorites')).map((r) => ({ ...r, items: JSON.parse(r.items as string) })),
     activities: await all('activities'),
     weights: await all('weights'),
-    measurements: await all('measurements'),
+    gymMeasurements: await all('gym_measurements'),
     // Photo details only; the photos themselves stay on the phone (too big for a backup file).
-    bodyPhotos: await all('body_photos'),
+    gymPhotos: await all('gym_photos'),
     lessonsRead: await all('lessons_read'),
     settings: Object.fromEntries((await all('kv')).map((r) => [r.key, JSON.parse(r.value as string)])),
   };
@@ -311,7 +311,7 @@ export async function importAll(data: Partial<Backup> & { goals?: unknown; remin
     for (const f of (data.favorites ?? []) as unknown as Favorite[]) await saveFavorite(f);
     for (const a of (data.activities ?? []) as unknown as Activity[]) await saveActivity(a);
     for (const w of (data.weights ?? []) as unknown as { date: string; kg: number }[]) await saveWeight(w.date, w.kg);
-    for (const m of (data.measurements ?? []) as unknown as Measurement[]) await saveMeasurement(m.date, m.kind, m.value);
+    for (const m of (data.gymMeasurements ?? []) as unknown as Measurement[]) await saveGymMeasurement(m.date, m.kind, m.value);
     for (const l of (data.lessonsRead ?? []) as unknown as { lesson_id: string; date: string }[]) {
       await markLessonRead(l.lesson_id, l.date);
     }
@@ -328,6 +328,6 @@ export async function wipeAll() {
   const db = await getDb();
   await db.execAsync(
     'DELETE FROM entries; DELETE FROM favorites; DELETE FROM activities; DELETE FROM weights; ' +
-    'DELETE FROM lessons_read; DELETE FROM kv; DELETE FROM body_photos; DELETE FROM measurements;');
+    'DELETE FROM lessons_read; DELETE FROM kv; DELETE FROM gym_photos; DELETE FROM gym_measurements;');
   await setApiKey('');
 }
