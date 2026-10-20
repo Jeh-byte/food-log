@@ -54,6 +54,8 @@ export default function RootLayout() {
         <Stack.Screen name="ideas" options={{ title: 'Meal ideas' }} />
         <Stack.Screen name="lesson/[id]" options={{ title: 'Lesson' }} />
         <Stack.Screen name="day/[date]" options={{ title: 'Day' }} />
+        <Stack.Screen name="gym/photo/[id]" options={{ title: 'Photo' }} />
+        <Stack.Screen name="gym/compare" options={{ title: 'Compare' }} />
       </Stack>
       <StatusBar style="auto" />
     </>

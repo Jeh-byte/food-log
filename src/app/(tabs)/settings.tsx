@@ -8,6 +8,7 @@ import { Button, Card, Field, H2, Hint, IconButton, Label, Row, Screen, Segmente
 import * as db from '@/lib/db';
 import { fromDisplayWeight, toDisplayWeight } from '@/lib/activity';
 import { today } from '@/lib/dates';
+import { deleteAllPhotoFiles } from '@/lib/gym';
 import {
   DEFAULT_REMINDERS, REMINDER_DAYS, ensurePermission, getReminders, newReminder, saveReminders,
   type ReminderSettings,
@@ -115,10 +116,10 @@ export default function Settings() {
   function wipe() {
     Alert.alert(
       'Delete all data?',
-      'This deletes every meal, favorite, activity, weight and setting on this phone, including your API key. Export a backup first if you might want them.',
+      'This deletes every meal, favorite, activity, weight, progress photo, measurement and setting on this phone, including your API key. Export a backup first if you might want them.',
       [
         { text: 'Cancel' },
-        { text: 'Delete everything', style: 'destructive', onPress: async () => { await db.wipeAll(); await saveReminders({ enabled: false, items: [] }); load(); } },
+        { text: 'Delete everything', style: 'destructive', onPress: async () => { await db.wipeAll(); deleteAllPhotoFiles(); await saveReminders({ enabled: false, items: [] }); load(); } },
       ],
     );
   }
