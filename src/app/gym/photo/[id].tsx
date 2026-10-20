@@ -32,6 +32,10 @@ export default function GymPhotoScreen() {
         accessibilityLabel={`${photo.pose} photo, ${shortDate(photo.date)}`}
       />
       <Hint>{POSES.find((p) => p.value === photo.pose)?.label} · {shortDate(photo.date)}</Hint>
+      <Button
+        title={photo.align ? 'Re-mark neck and belly button' : 'Mark neck and belly button'}
+        onPress={() => router.push({ pathname: '/gym/align/[id]', params: { id: photo.id } })}
+      />
       <Button title="Delete photo" kind="danger" onPress={remove} />
     </Screen>
   );

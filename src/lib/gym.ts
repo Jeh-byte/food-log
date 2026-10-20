@@ -35,7 +35,7 @@ export async function addPhoto(src: { uri: string; width: number; height: number
   const file = `${date}-${id}.jpg`;
   await new File(img.uri).copy(new File(dir, file));
   const photo: db.GymPhoto = {
-    id, date, file, pose, width: img.width, height: img.height, created_at: new Date().toISOString(),
+    id, date, file, pose, width: img.width, height: img.height, created_at: new Date().toISOString(), align: null,
   };
   await db.saveGymPhoto(photo);
   return photo;

@@ -42,7 +42,7 @@ async function migrate(db: SQLite.SQLiteDatabase) {
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS gym_photos (
       id TEXT PRIMARY KEY NOT NULL, date TEXT NOT NULL, file TEXT NOT NULL, pose TEXT NOT NULL,
-      width INTEGER NOT NULL, height INTEGER NOT NULL, created_at TEXT NOT NULL);
+      width INTEGER NOT NULL, height INTEGER NOT NULL, created_at TEXT NOT NULL, align TEXT);
     CREATE INDEX IF NOT EXISTS gym_photos_date ON gym_photos (date);
     CREATE TABLE IF NOT EXISTS gym_measurements (
       date TEXT NOT NULL, part TEXT NOT NULL, cm REAL NOT NULL, PRIMARY KEY (date, part));
@@ -179,25 +179,34 @@ export type GymPhoto = {
   width: number;
   height: number;
   created_at: string;
+  /** Base of neck and belly button, as fractions of the photo, so photos can be lined up. */
+  align: Align | null;
 };
+
+export type Align = { nx: number; ny: number; bx: number; by: number };
 
 export type Pose = 'front' | 'side' | 'back' | 'other';
 
+type GymPhotoRow = Omit<GymPhoto, 'align'> & { align: string | null };
+const toGymPhoto = (r: GymPhotoRow): GymPhoto => ({ ...r, align: r.align ? (JSON.parse(r.align) as Align) : null });
+
 export async function gymPhotos() {
   const db = await getDb();
-  return db.getAllAsync<GymPhoto>('SELECT * FROM gym_photos ORDER BY date DESC, created_at DESC');
+  const rows = await db.getAllAsync<GymPhotoRow>('SELECT * FROM gym_photos ORDER BY date DESC, created_at DESC');
+  return rows.map(toGymPhoto);
 }
 
 export async function getGymPhoto(id: string) {
   const db = await getDb();
-  return db.getFirstAsync<GymPhoto>('SELECT * FROM gym_photos WHERE id = ?', id);
+  const row = await db.getFirstAsync<GymPhotoRow>('SELECT * FROM gym_photos WHERE id = ?', id);
+  return row ? toGymPhoto(row) : null;
 }
 
 export async function saveGymPhoto(p: GymPhoto) {
   const db = await getDb();
   await db.runAsync(
-    'INSERT OR REPLACE INTO gym_photos (id, date, file, pose, width, height, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    p.id, p.date, p.file, p.pose, p.width, p.height, p.created_at);
+    'INSERT OR REPLACE INTO gym_photos (id, date, file, pose, width, height, created_at, align) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    p.id, p.date, p.file, p.pose, p.width, p.height, p.created_at, p.align ? JSON.stringify(p.align) : null);
 }
 
 export async function deleteGymPhotoRow(id: string) {

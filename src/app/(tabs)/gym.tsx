@@ -140,12 +140,20 @@ export default function Gym() {
           <DateChips dates={dates} value={beforeDate} onChange={setBefore} />
           <Label>After</Label>
           <DateChips dates={dates} value={afterDate} onChange={setAfter} />
-          <Button
-            title="Compare side by side"
-            kind="primary"
-            disabled={beforeDate === afterDate}
-            onPress={() => router.push({ pathname: '/gym/compare', params: { a: beforeDate, b: afterDate } })}
-          />
+          <Row>
+            <Button
+              title="First vs latest"
+              style={{ flex: 1 }}
+              onPress={() => router.push({ pathname: '/gym/compare', params: { a: dates[dates.length - 1], b: dates[0] } })}
+            />
+            <Button
+              title="Compare"
+              kind="primary"
+              style={{ flex: 1 }}
+              disabled={beforeDate === afterDate}
+              onPress={() => router.push({ pathname: '/gym/compare', params: { a: beforeDate, b: afterDate } })}
+            />
+          </Row>
         </Card>
       )}
 

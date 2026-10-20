@@ -1,8 +1,10 @@
-import { useCallback, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { Alert, StyleSheet, Switch, Text, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { Card, Hint, Label, Row, Screen, Segmented } from '@/components/ui';
-import { CompareSlider } from '@/components/compare';
+import * as Sharing from 'expo-sharing';
+import { captureRef } from 'react-native-view-shot';
+import { Button, Card, Hint, Label, Row, Screen, Segmented } from '@/components/ui';
+import { CompareView, type CompareMode, type ComparePhoto } from '@/components/compare';
 import * as db from '@/lib/db';
 import { daysBetween, shortDate } from '@/lib/dates';
 import { toDisplayWeight } from '@/lib/activity';
@@ -17,6 +19,10 @@ export default function CompareScreen() {
   const [measurements, setMeasurements] = useState<db.Measurement[]>([]);
   const [profile, setProfile] = useState(db.DEFAULT_PROFILE);
   const [pose, setPose] = useState<db.Pose | null>(null);
+  const [mode, setMode] = useState<CompareMode>('slider');
+  const [aligned, setAligned] = useState(true);
+  const [straighten, setStraighten] = useState(true);
+  const shot = useRef<View>(null);
 
   useFocusEffect(useCallback(() => {
     Promise.all([db.gymPhotos(), db.weights(), db.gymMeasurements(), db.getProfile()]).then(([p, w, m, prof]) => {
@@ -50,48 +56,89 @@ export default function CompareScreen() {
 
   if (!before || !after) return <Screen><Hint>Those photos aren’t here any more.</Hint></Screen>;
 
+  const view = (p: db.GymPhoto, label: string): ComparePhoto => ({ uri: photoUri(p), width: p.width, height: p.height, align: p.align, label });
+  const canAlign = !!(before.align && after.align);
+  const lineUp = canAlign && aligned;
+
+  async function share() {
+    try {
+      const uri = await captureRef(shot, { format: 'jpg', quality: 0.9, result: 'tmpfile' });
+      await Sharing.shareAsync(uri, { mimeType: 'image/jpeg', dialogTitle: 'Share your before and after' });
+    } catch (e) {
+      Alert.alert('Couldn’t make the image', (e as Error).message);
+    }
+  }
+
   return (
     <Screen>
       {options.length > 1 && current && <Segmented value={current} options={options} onChange={setPose} />}
-      <CompareSlider
-        key={before.id + after.id}
-        before={photoUri(before)}
-        after={photoUri(after)}
-        aspect={after.width / after.height || 0.75}
-        beforeLabel={shortDate(first)}
-        afterLabel={shortDate(second)}
+      <Segmented<CompareMode>
+        value={mode}
+        options={[{ value: 'slider', label: 'Slider' }, { value: 'side', label: 'Side by side' }, { value: 'overlay', label: 'Overlay' }]}
+        onChange={setMode}
       />
-      <Hint style={{ textAlign: 'center' }}>Drag across the photo to slide between the two dates.</Hint>
+      <View ref={shot} collapsable={false} style={{ gap: 12, backgroundColor: t.bg }}>
+        <CompareView
+          key={before.id + after.id + mode}
+          before={view(before, shortDate(first))}
+          after={view(after, shortDate(second))}
+          mode={mode}
+          aspect={lineUp ? 0.75 : after.width / after.height || 0.75}
+          aligned={lineUp}
+          straighten={straighten}
+        />
+        <Card>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <Label>{daysBetween(first, second)} days apart</Label>
+          </Row>
+          <View style={[s.tr, { borderBottomColor: t.border }]}>
+            <Text style={[s.td, { color: t.text2 }]} />
+            <Text style={[s.td, s.num, { color: t.text2 }]}>{shortDate(first)}</Text>
+            <Text style={[s.td, s.num, { color: t.text2 }]}>{shortDate(second)}</Text>
+            <Text style={[s.td, s.num, { color: t.text2 }]}>Change</Text>
+          </View>
+          {wA && wB && (
+            <Line
+              label={`Weight (${profile.units})`}
+              x={toDisplayWeight(wA.kg, profile.units)}
+              y={toDisplayWeight(wB.kg, profile.units)}
+            />
+          )}
+          {rows.map(({ part, x, y }) => (
+            <Line
+              key={part}
+              label={`${part} (${lenUnit})`}
+              x={inches ? x!.cm / CM_PER_IN : x!.cm}
+              y={inches ? y!.cm / CM_PER_IN : y!.cm}
+            />
+          ))}
+          {!(wA && wB) && !rows.length && <Hint>Log weight and measurements to see the numbers change here too.</Hint>}
+        </Card>
+      </View>
+      <Hint style={{ textAlign: 'center' }}>
+        {mode === 'slider' ? 'Drag across the photo to slide between the two dates.'
+          : mode === 'overlay' ? 'Drag across the photo to fade the after photo in and out.' : ''}
+      </Hint>
       {!shared.length && <Hint>No pose was photographed on both dates, so these may not line up.</Hint>}
 
       <Card>
         <Row style={{ justifyContent: 'space-between' }}>
-          <Label>{daysBetween(first, second)} days apart</Label>
+          <Text style={{ color: t.text, flex: 1 }}>Line up photos</Text>
+          <Switch value={lineUp} disabled={!canAlign} onValueChange={setAligned} />
         </Row>
-        <View style={[s.tr, { borderBottomColor: t.border }]}>
-          <Text style={[s.td, { color: t.text2 }]} />
-          <Text style={[s.td, s.num, { color: t.text2 }]}>{shortDate(first)}</Text>
-          <Text style={[s.td, s.num, { color: t.text2 }]}>{shortDate(second)}</Text>
-          <Text style={[s.td, s.num, { color: t.text2 }]}>Change</Text>
-        </View>
-        {wA && wB && (
-          <Line
-            label={`Weight (${profile.units})`}
-            x={toDisplayWeight(wA.kg, profile.units)}
-            y={toDisplayWeight(wB.kg, profile.units)}
-          />
+        <Row style={{ justifyContent: 'space-between' }}>
+          <Text style={{ color: t.text, flex: 1 }}>Straighten tilted photos</Text>
+          <Switch value={straighten} disabled={!lineUp} onValueChange={setStraighten} />
+        </Row>
+        {!canAlign && (
+          <Hint>
+            To line these up, open each photo and tap “Mark neck and belly button”.
+            {!before.align ? ` ${shortDate(first)} isn’t marked yet.` : ''}{!after.align ? ` ${shortDate(second)} isn’t marked yet.` : ''}
+          </Hint>
         )}
-        {rows.map(({ part, x, y }) => (
-          <Line
-            key={part}
-            label={`${part} (${lenUnit})`}
-            x={inches ? x!.cm / CM_PER_IN : x!.cm}
-            y={inches ? y!.cm / CM_PER_IN : y!.cm}
-          />
-        ))}
-        {!(wA && wB) && !rows.length && <Hint>Log weight and measurements to see the numbers change here too.</Hint>}
         {wA && wB && <Hint>Weight is the latest weigh-in on or before each date.</Hint>}
       </Card>
+      <Button title="Share before / after image" kind="primary" onPress={share} />
     </Screen>
   );
 }
