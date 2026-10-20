@@ -83,7 +83,7 @@ export default function CompareScreen() {
           before={view(before, shortDate(first))}
           after={view(after, shortDate(second))}
           mode={mode}
-          aspect={lineUp ? 0.75 : after.width / after.height || 0.75}
+          aspect={lineUp ? 2 / 3 : after.width / after.height || 0.75}
           aligned={lineUp}
           straighten={straighten}
         />

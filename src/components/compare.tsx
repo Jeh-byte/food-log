@@ -8,8 +8,9 @@ export type CompareMode = 'slider' | 'side' | 'overlay';
 export type ComparePhoto = { uri: string; width: number; height: number; align: Align | null; label: string };
 
 // Where the base of the neck and the belly button land in an aligned frame, as fractions of its height.
-const NECK_Y = 0.24;
-const BELLY_Y = 0.54;
+// Neck to belly button is roughly a quarter of standing height, so this leaves room for head and feet.
+const NECK_Y = 0.16;
+const BELLY_Y = 0.33;
 
 /**
  * A photo filling a frame. When `aligned` and the photo has its two points marked, it is scaled,
