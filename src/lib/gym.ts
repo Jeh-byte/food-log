@@ -113,14 +113,19 @@ export const ANCHOR_A = { x: 0.5, y: 0.16 };
 export const ANCHOR_B = { x: 0.5, y: 0.33 };
 export const PANEL_RATIO = 2 / 3; // width / height
 
+/** How far lined-up photos are zoomed: 1 is the anchor spacing above, smaller shows more around the body. */
+export const ZOOMS = { far: 0.55, normal: 0.75, close: 1 } as const;
+export type Zoom = keyof typeof ZOOMS;
+
 export type Placement = { scale: number; angle: number; tx: number; ty: number };
 
 /**
  * How to draw a photo in a w×h panel: panel point = scale·rotate(angle)·photo pixel + (tx, ty).
  * With alignment points, the neck and belly button land on the same spots in every photo,
- * so photos taken closer, further away or slightly tilted still line up.
+ * so photos taken closer, further away or slightly tilted still line up. `zoom` scales lined-up
+ * photos about the middle of the body, so photos sharing a zoom stay lined up with each other.
  */
-export function placement(p: db.GymPhoto, w: number, h: number, aligned: boolean, straighten = true): Placement {
+export function placement(p: db.GymPhoto, w: number, h: number, aligned: boolean, straighten = true, zoom = 1): Placement {
   const iw = p.width, ih = p.height;
   if (aligned && p.align) {
     const [[ax, ay], [bx, by]] = p.align;
@@ -131,7 +136,9 @@ export function placement(p: db.GymPhoto, w: number, h: number, aligned: boolean
       const scale = Math.hypot(tbx - tax, tby - tay) / srcLen;
       const angle = straighten ? Math.atan2(tby - tay, tbx - tax) - Math.atan2(ey - sy, ex - sx) : 0;
       const c = Math.cos(angle) * scale, s = Math.sin(angle) * scale;
-      return { scale, angle, tx: tax - (c * sx - s * sy), ty: tay - (s * sx + c * sy) };
+      const tx = tax - (c * sx - s * sy), ty = tay - (s * sx + c * sy);
+      const cx = w / 2, cy = h * 0.45; // roughly the hips with the default anchors
+      return { scale: scale * zoom, angle, tx: cx + (tx - cx) * zoom, ty: cy + (ty - cy) * zoom };
     }
   }
   const scale = Math.min(w / iw, h / ih);

@@ -6,12 +6,13 @@ import { shortDate } from '@/lib/dates';
 import { useTheme } from '@/lib/theme';
 
 /** A progress photo drawn in a w×h panel, lined up by its alignment points when `aligned` is on. */
-export function AlignedPhoto({ photo, width, height, aligned = true, straighten = true, opacity = 1 }: {
+export function AlignedPhoto({ photo, width, height, aligned = true, straighten = true, zoom = 1, opacity = 1 }: {
   photo: db.GymPhoto | null;
   width: number;
   height: number;
   aligned?: boolean;
   straighten?: boolean;
+  zoom?: number;
   opacity?: number;
 }) {
   const t = useTheme();
@@ -22,7 +23,7 @@ export function AlignedPhoto({ photo, width, height, aligned = true, straighten 
       </View>
     );
   }
-  const pl = placement(photo, width, height, aligned, straighten);
+  const pl = placement(photo, width, height, aligned, straighten, zoom);
   return (
     <View style={[s.panel, { width, height, backgroundColor: '#111', pointerEvents: 'none' }]}>
       <Image
@@ -105,21 +106,22 @@ export function SliderBar({ value, onChange, style }: { value: number; onChange:
 }
 
 /** Drag-to-wipe comparison: before on the left of the line, after on the right. */
-export function WipeCompare({ before, after, width, height, aligned, straighten = true }: {
+export function WipeCompare({ before, after, width, height, aligned, straighten = true, zoom = 1 }: {
   before: db.GymPhoto | null;
   after: db.GymPhoto | null;
   width: number;
   height: number;
   aligned: boolean;
   straighten?: boolean;
+  zoom?: number;
 }) {
   const [split, setSplit] = useState(0.5);
   const set = (x: number) => setSplit(Math.min(1, Math.max(0, x / width)));
   return (
     <View style={{ width, height }}>
-      <AlignedPhoto photo={after} width={width} height={height} aligned={aligned} straighten={straighten} />
+      <AlignedPhoto photo={after} width={width} height={height} aligned={aligned} straighten={straighten} zoom={zoom} />
       <View style={[{ position: 'absolute', left: 0, top: 0, width: split * width, height, overflow: 'hidden' }, { pointerEvents: 'none' }]}>
-        <AlignedPhoto photo={before} width={width} height={height} aligned={aligned} straighten={straighten} />
+        <AlignedPhoto photo={before} width={width} height={height} aligned={aligned} straighten={straighten} zoom={zoom} />
       </View>
       <View style={[[s.divider, { left: split * width - 1, height }], { pointerEvents: 'none' }]} />
       <View style={[[s.handle, { left: split * width - 16, top: height / 2 - 16 }], { pointerEvents: 'none' }]}>

@@ -6,7 +6,7 @@ import { captureRef } from 'react-native-view-shot';
 import { Button, Card, H2, Hint, Row, Screen, Segmented } from '@/components/ui';
 import { AlignedPhoto, PhotoTag, SliderBar, Thumb, WipeCompare } from '@/components/gym';
 import * as db from '@/lib/db';
-import { MEASURES, PANEL_RATIO, nearest } from '@/lib/gym';
+import { MEASURES, PANEL_RATIO, ZOOMS, nearest, type Zoom } from '@/lib/gym';
 import { toDisplayWeight } from '@/lib/activity';
 import { daysBetween, shortDate } from '@/lib/dates';
 import { useTheme } from '@/lib/theme';
@@ -24,6 +24,7 @@ export default function Compare() {
   const [mode, setMode] = useState<Mode>('side');
   const [aligned, setAligned] = useState(true);
   const [straighten, setStraighten] = useState(true);
+  const [zoom, setZoom] = useState<Zoom>('normal');
   const shot = useRef<View>(null);
   const [opacity, setOpacity] = useState(0.5);
   const [picking, setPicking] = useState<'before' | 'after' | null>(null);
@@ -32,14 +33,15 @@ export default function Compare() {
   const [profile, setProfile] = useState(db.DEFAULT_PROFILE);
 
   const load = useCallback(async () => {
-    const [all, sel, w, m, p] = await Promise.all([
+    const [all, sel, w, m, p, z] = await Promise.all([
       db.gymPhotos(), db.getSetting<{ before?: string; after?: string }>('compare', {}),
-      db.weights(), db.gymMeasurements(), db.getProfile(),
+      db.weights(), db.gymMeasurements(), db.getProfile(), db.getSetting<Zoom>('compareZoom', 'normal'),
     ]);
     setPhotos(all);
     setWeights(w);
     setMeas(m);
     setProfile(p);
+    setZoom(ZOOMS[z] ? z : 'normal');
     // Default: first and latest front photos (or any photos).
     const pool = all.some((x) => x.pose === 'front') ? all.filter((x) => x.pose === 'front') : all;
     setBefore(all.find((x) => x.id === sel.before) ?? pool[0] ?? null);
@@ -143,18 +145,18 @@ export default function Compare() {
         {mode === 'side' && (
           <Row style={{ alignItems: 'flex-start' }}>
             <View>
-              <AlignedPhoto photo={before} width={panelW} height={panelH} aligned={aligned} straighten={straighten} />
+              <AlignedPhoto photo={before} width={panelW} height={panelH} aligned={aligned} straighten={straighten} zoom={ZOOMS[zoom]} />
               <PhotoTag text={label('BEFORE', before)} color={BEFORE} />
             </View>
             <View>
-              <AlignedPhoto photo={after} width={panelW} height={panelH} aligned={aligned} straighten={straighten} />
+              <AlignedPhoto photo={after} width={panelW} height={panelH} aligned={aligned} straighten={straighten} zoom={ZOOMS[zoom]} />
               <PhotoTag text={label('AFTER', after)} color={AFTER} />
             </View>
           </Row>
         )}
         {mode === 'wipe' && (
           <View>
-            <WipeCompare before={before} after={after} width={panelW} height={panelH} aligned={aligned} straighten={straighten} />
+            <WipeCompare before={before} after={after} width={panelW} height={panelH} aligned={aligned} straighten={straighten} zoom={ZOOMS[zoom]} />
             <PhotoTag text={label('BEFORE', before)} color={BEFORE} />
             <PhotoTag text={label('AFTER', after)} color={AFTER} right />
           </View>
@@ -162,9 +164,9 @@ export default function Compare() {
         {mode === 'overlay' && (
           <View>
             <View style={{ width: panelW, height: panelH }}>
-              <AlignedPhoto photo={before} width={panelW} height={panelH} aligned={aligned} straighten={straighten} />
+              <AlignedPhoto photo={before} width={panelW} height={panelH} aligned={aligned} straighten={straighten} zoom={ZOOMS[zoom]} />
               <View style={{ position: 'absolute', left: 0, top: 0 }}>
-                <AlignedPhoto photo={after} width={panelW} height={panelH} aligned={aligned} straighten={straighten} opacity={opacity} />
+                <AlignedPhoto photo={after} width={panelW} height={panelH} aligned={aligned} straighten={straighten} zoom={ZOOMS[zoom]} opacity={opacity} />
               </View>
             </View>
             <PhotoTag text={label('BEFORE', before)} color={BEFORE} />
@@ -194,6 +196,16 @@ export default function Compare() {
         <Text style={{ color: t.text, fontSize: 15 }}>Straighten tilted photos</Text>
         <Switch value={straighten} disabled={!aligned} onValueChange={setStraighten} trackColor={{ true: t.accent }} />
       </Row>
+      {aligned && (
+        <>
+          <Text style={{ color: t.text, fontSize: 15 }}>Zoom</Text>
+          <Segmented<Zoom>
+            value={zoom}
+            onChange={(z) => { setZoom(z); db.setSetting('compareZoom', z); }}
+            options={[{ value: 'far', label: 'Far' }, { value: 'normal', label: 'Normal' }, { value: 'close', label: 'Close' }]}
+          />
+        </>
+      )}
       {aligned && missing && (
         <Hint style={{ color: t.star }}>
           One of these photos isn’t lined up yet. Open it from the Gym tab and tap “Line up this photo”.
